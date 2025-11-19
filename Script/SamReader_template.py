@@ -7,16 +7,7 @@ __authors__ = ("Mathilde Chatain", "Lucien Maurau")
 __contact__ = ("mathilde.chatain@etu.umontpellier.fr","lucien.maurau@etu.umontpellier.fr")
 __version__ = "0.0.1"
 __date__ = "12/14/2021"
-__licence__ ="This program is free software: you can redistribute it and/or modify
-        it under the terms of the GNU General Public License as published by
-        the Free Software Foundation, either version 3 of the License, or
-        (at your option) any later version.
-        This program is distributed in the hope that it will be useful,
-        but WITHOUT ANY WARRANTY; without even the implied warranty of
-        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-        GNU General Public License for more details.
-        You should have received a copy of the GNU General Public License
-        along with this program. If not, see <https://www.gnu.org/licenses/>."
+__licence__ ="This program is free software: you can redistribute it and/or modifyit under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>."
 
 
      
@@ -40,6 +31,29 @@ import os, sys, re ....
 ############### FUNCTIONS TO :
 
 ## 1/ Check, 
+#si repertoire est fichier, si fichier existe et si il est non vide
+#verifier la ligne de commande
+
+import os;
+import sys;
+
+def check_file(fichier):
+    if not os.path.exists(fichier):
+        print(f"Erreur : le chemin '{fichier}' n'existe pas.")
+        return False
+
+    if not os.path.isfile(fichier):
+        print(f"Erreur : le chemin '{fichier}' n'est pas un fichier.")
+        return False
+    taille = os.path.getsize(fichier)
+    if taille == 0:
+        print(f"Erreur : le fichier '{fichier}' est vide.")
+        return False
+
+    print(f"OK : le fichier '{fichier}' existe et est non vide (taille : {taille} octets).")
+    return True
+
+
 
 ## 2/ Read, 
 
