@@ -3,8 +3,8 @@
 #CHANGEMENT POUR TESTER COMMIT
 
 
-__authors__ = ("XXX", "XXX")
-__contact__ = ("XXX@etu.umontpellier.fr","XXX@etu.umontpellier.fr")
+__authors__ = ("Mathilde Chatain", "Lucien Maurau")
+__contact__ = ("mathilde.chatain@etu.umontpellier.fr","lucien.maurau@etu.umontpellier.fr")
 __version__ = "0.0.1"
 __date__ = "12/14/2021"
 __licence__ ="This program is free software: you can redistribute it and/or modify
