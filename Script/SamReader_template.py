@@ -11,23 +11,15 @@ __licence__ ="This program is free software: you can redistribute it and/or modi
 
 
      
-    ### OPTION LIST:
-        ##-h or --help : help information
-        ##-i or --input: input file (.sam)
-        ##-o or --output: output name files (.txt)
-
-    #Synopsis:
-        ##SamReader.py -h or --help # launch the help.
-        ##SamReader.py -i or --input <file> # Launch SamReader to analyze a samtools file (.sam) and print the result in the terminal
-        ##SamReader.py -i or --input <file> -o or --output <name> # Launch SamReader to analyze a samtools file (.sam) and print the result in the file called <name>
+### OPTION LIST:
+##-h or --help : help information
+# ##-i or --input: input file (.sam)
+##-o or --output: output name files (.txt)
+#Synopsis:
+##SamReader.py -h or --help # launch the help.
+##SamReader.py -i or --input <file> # Launch SamReader to analyze a samtools file (.sam) and print the result in the terminal
+##SamReader.py -i or --input <file> -o or --output <name> # Launch SamReader to analyze a samtools file (.sam) and print the result in the file called <name>
   
-
-
-############### IMPORT MODULES ###############
-
-import os, sys, re ....
-
-
 ############### FUNCTIONS TO :
 
 ## 1/ Check, 
@@ -45,6 +37,7 @@ def check_file(fichier):
     if not os.path.isfile(fichier):
         print(f"Erreur : le chemin '{fichier}' n'est pas un fichier.")
         return False
+    
     taille = os.path.getsize(fichier)
     if taille == 0:
         print(f"Erreur : le fichier '{fichier}' est vide.")
@@ -53,9 +46,32 @@ def check_file(fichier):
     print(f"OK : le fichier '{fichier}' existe et est non vide (taille : {taille} octets).")
     return True
 
-
-
 ## 2/ Read, 
+
+def read_file(file):
+    with open(file,'r') as f:
+        read_sam = []
+        for line in f:
+            if line.startswith('@'):
+               continue
+
+            fields = line.rstrip("\n").split("\t")
+            standard_cols = [
+                "QNAME", "FLAG", "RNAME", "POS", "MAPQ", "CIGAR",
+                "RNEXT", "PNEXT", "TLEN", "SEQ", "QUAL"
+            ]
+
+            dict={standard_cols[i]: fields[i] for i in range(len(standard_cols))}
+
+            if len(fields) > len(standard_cols):
+                for opt in fields[len(standard_cols):]:
+                    tag, type_, value = opt.split(":", 2)
+                    dict[tag] = value
+
+            read_sam.append(dict)
+
+    return read_sam
+
 
 ## 3/ Store,
 
@@ -189,13 +205,17 @@ def globalPercentCigar():
 #### Summarise the results ####
 
 def Summary(fileName):
-    
+    pass
    
 
 #### Main function ####
 
 def main(argv):
-    
+    sam_path="./mapping.sam"
+    check_file(sam_path)
+    sam_data = read_file(sam_path)
+
+    print(f"Nombre de reads lus : {len(sam_data)}")
 
 ############### LAUNCH THE SCRIPT ###############
 
