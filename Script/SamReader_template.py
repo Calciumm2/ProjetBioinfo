@@ -21,49 +21,52 @@ __licence__ ="This program is free software: you can redistribute it and/or modi
         ##SamReader.py -i or --input <file> # Launch SamReader to analyze a samtools file (.sam) and print the result in the terminal
         ##SamReader.py -i or --input <file> -o or --output <name> # Launch SamReader to analyze a samtools file (.sam) and print the result in the file called <name>
   
-
-
-############### IMPORT MODULES ###############
-
-import os, sys, re ....
-
-
 ############### FUNCTIONS TO :
 
-## 1/ Check, 
-#si repertoire est fichier, si fichier existe et si il est non vide
-#verifier la ligne de commande
-
+from itertools import islice
 import os;
 import sys;
+import re
 
-def check_file(fichier):
-    if not os.path.exists(fichier):
-        print(f"Erreur : le chemin '{fichier}' n'existe pas.")
+#Fonction qui vérifie si le lien vers "fichier" existe
+def check_file(file):
+    if not os.path.exists(file):
+        print(f"Erreur : le chemin '{file}' n'existe pas.")
         return False
 
-    if not os.path.isfile(fichier):
-        print(f"Erreur : le chemin '{fichier}' n'est pas un fichier.")
+    if not os.path.isfile(file):
+        print(f"Erreur : le chemin '{file}' n'est pas un fichier.")
         return False
-    taille = os.path.getsize(fichier)
+    taille = os.path.getsize(file)
     if taille == 0:
-        print(f"Erreur : le fichier '{fichier}' est vide.")
+        print(f"Erreur : le fichier '{file}' est vide.")
         return False
 
-    print(f"OK : le fichier '{fichier}' existe et est non vide (taille : {taille} octets).")
+    print(f"OK : le fichier '{file}' existe et est non vide (taille : {taille} octets).")
     return True
 
-
-
 ## 2/ Read, 
-
+#Fonction qui lis le fichier, sépare ligne 
+def SamRead(file):
+    with open(file,"r") as Str:  
+        L=list(islice(enumerate(Str),2,None))
+    return [t[1] for t in L]
+    
 ## 3/ Store,
+#Fonction qui appelle check_file et samread et qui stocke les résultats de unmapped et de partiallymapped
+def Store(file):
+    if check_file(file):
+        sam_lines=SamRead(file)
+        unmapped_count=unmapped(sam_lines)
+        partially_mapped_count=partiallyMapped(sam_lines)
+        return partially_mapped_count,unmapped_count
+    else:
+        return None 
 
 ## 4/ Analyse 
 
-#### Convert the flag into binary ####
-def flagBinary(flag) :
-
+#Converti les flag en binaire, adapter la lecture en fonction 
+def flagBinary(flag):
     flagB = bin(int(flag)) # Transform the integer into a binary.
     flagB = flagB[2:] # Remove '0b' Example: '0b1001101' > '1001101'
     flagB = list(flagB) 
@@ -74,96 +77,79 @@ def flagBinary(flag) :
     return flagB
 
 
-#### Analyze the unmapped reads (not paired) ####
+#Prend les lignes unmapped et écrit un fichier qui les contient en Fasta et un fichier résumé qui donne le nombre de reads unmapped
 def unmapped(sam_line):
-    
     unmapped_count = 0
-    with open ("only_unmapped.fasta", "a+") as unmapped_fasta, open("summary_unmapped.txt", "w") as summary_file:
+    with open ("../Results/only_unmapped.fasta", "a+") as unmapped_fasta, open("../Results/summary_unmapped.txt", "w") as summary_file:
         for line in sam_line:
             col_line = line.split("\t")
             flag = flagBinary(col_line[1])
-
             if int(flag[-3]) == 1:
                 unmapped_count += 1
-                unmapped_fasta.write(toStringOutput(line))
-
+                unmapped_fasta.write(line) #retiré "toStringOutput"
         summary_file.write("Total unmapped reads: " + str(unmapped_count) + "\n") 
         return unmapped_count
 
-#### Analyze the partially mapped reads ####
+#Fonction qui compte les read partially mapped en regardant le CIGAR
 def partiallyMapped(sam_line):
-    
     partially_mapped_count = 0
-
-    with open ("only_partially_mapped.fasta", "a+") as partillay_mapped_fasta, open("summary_partially_mapped.txt", "w") as summary_file:
+    with open ("../Results/only_partially_mapped.fasta", "a+") as partillay_mapped_fasta, open("../Results/summary_partially_mapped.txt", "w") as summary_file:
         for line in sam_line:
             col_line = line.split("\t")
             flag = flagBinary(col_line[1]) # We compute the same 
-
             if int(flag[-2]) == 1: 
                 if col_line[5] != "100M":
                     partially_mapped_count += 1
-                    partillay_mapped_fasta.write(toStringOutput(line))
-
+                    partillay_mapped_fasta.write(line) #retiré "toStringOutput"
         summary_file.write("Total partially mapped reads: " + str(partially_mapped_count) + "\n") 
         return partially_mapped_count
 
 
-### Analyse the CIGAR = regular expression that summarise each read alignment ###
 def readCigar(cigar): 
-   
-    ext = re.findall('\w',cigar) # split cigar 
+    ext = re.findall('\w',cigar) #sépare tous les caractères
     key=[] 
     value=[]    
     val=""
-
     for i in range(0,len(ext)): # For each numeric values or alpha numeric
         if (ext[i] == 'M' or ext[i] == 'I' or ext[i] == 'D' or ext[i] == 'S' or ext[i] == 'H' or ext[i] == "N" or ext[i] == 'P'or ext[i] == 'X'or ext[i] == '=') :
-            key.append(ext[i])
-            value.append(val)
-            val = ""
+            key.append(ext[i]) #if précédent : si on trouve une lettre, on ajoute au dico, clé : la lettre, valeur : le numéro avant 
+            value.append(val) #on ajoute la valeur
+            val = "" #on rénétialise
         else :
-            val = "" + val + ext[i]  # Else concatenate in order of arrival
-    
+            val = "" + val + ext[i]  #On stocke valeur en parcourant le cigar
     dico = {}
     n = 0
-    for k in key:   # Dictionnary contruction in range size lists              
-        if k not in dico.keys():    # for each key, insert int value
-            dico[k] = int(value[n])   # if key not exist, create and add value
+    for k in key:   #On construit le dico             
+        if k not in dico.keys():    #On ne veut pas deux fois la même clé, on vérifie à chaque si elle est déjà dedans
+            dico[k] = int(value[n])   #On assigne la valeur
             n += 1
         else:
-            dico[k] += int(value[n])  # inf key exist add value
+            dico[k] += int(value[n])  #si la clé existe déjà, on ajoute
             n += 1
-    return dico
+    return dico #On obtient un dico qui donne la somme des opérations, mais plus leur ordre (qui était consigné dans le CIGAR)
 
-### Analyse the CIGAR = regular expression that summarise each read alignment ###
+#Fonction qui analyse le dico crée par la fonction readCigar
 def percentMutation(dico):
-        
-    totalValue = 0 # Total number of mutations
+    totalValue = 0 #valeur totale mutations
     for v in dico :
-        totalValue += dico[v]
-
-    mutList = ['M','I','D','S','H','N','P','X','=']
-    res = ""
-    for mut in mutList : # Calculated percent of mutation if mut present in the dictionnary, else, percent of mut = 0
+        totalValue += dico[v] #nombre total d'opérations consignés dans le cigar
+    mutList = ['M','I','D','S','H','N','P','X','='] #Bizarre, pourquoi il y a le M qui devrait correspondre à "match", c'est pas une mutation ?? 
+    res = "" 
+    for mut in mutList : # Pour chaque de mutation on itère dans le dico
         if mut in dico.keys() :
-            res += (str(round((dico[mut] * 100) / totalValue, 2)) + ";")
+            res += (str(round((dico[mut] * 100) / totalValue, 2)) + ";") #On ajoute le pourcentage de l'opération considérée
         else :
-            res += ("0.00" + ";")
-    return res
+            res += ("0.00" + ";") 
+    return res[:-1] #on met zéro sinon, l'ordre spécifie l'opération (voir fonction suivante), donc pas besoin de nommer à chaque fois
 
+#Fonction qui écrit un .txt qui résume la distribution de tous les cigar à partir d'un cigar contenant les contenus de la fonction précédente (itérée paire par paire ?)
 def globalPercentCigar():
-    """
-      Global representation of cigar distribution.
-    """
-    
-    with open ("outpuTable_cigar.txt","r") as outpuTable, open("Final_Cigar_table.txt", "w") as FinalCigar:
-        nbReads, M, I, D, S, H, N, P, X, Egal = [0 for n in range(10)]
-
-        for line in outpuTable :
+    with open ("outpuTable_cigar.txt","r") as outpuTable, open("Final_Cigar_table.txt", "w") as FinalCigar: #On explicite le .txt qu'on lit et écrit
+        nbReads, M, I, D, S, H, N, P, X, Egal = [0 for n in range(10)] #chaque valeur initiée à zéro
+        for line in outpuTable : #on parcourt chaque ligne de la table donnée
             mutValues = line.split(";")
-            nbReads += 2
-            M += float(mutValues[2])+float(mutValues[12])
+            nbReads += 2 #nombre de reads par lignes ?
+            M += float(mutValues[2])+float(mutValues[12]) #théorie : la valeur "de gauche" (resp "de droite") vaut pour le M du premier (resp deuxième) read de la paire 
             I += float(mutValues[3])+float(mutValues[13])
             D += float(mutValues[4])+float(mutValues[14])
             S += float(mutValues[5])+float(mutValues[15])
@@ -172,8 +158,7 @@ def globalPercentCigar():
             P += float(mutValues[8])+float(mutValues[18])
             X += float(mutValues[9])+float(mutValues[19])
             Egal += float(mutValues[10])+float(mutValues[20])
-
-        FinalCigar.write("Global cigar mutation observed :"+"\n"
+        FinalCigar.write("Global cigar mutation observed :"+"\n" #On écrit les résultats dans la table correspondante 
                         +"Alignlent Match : "+str(round(M/nbReads,2))+"\n"
                         +"Insertion : "+str(round(I/nbReads,2))+"\n"
                         +"Deletion : "+str(round(D/nbReads,2))+"\n"
@@ -183,21 +168,46 @@ def globalPercentCigar():
                         +"Padding : "+str(round(P/nbReads,2))+"\n"
                         +"Sequence Match : "+str(round(Egal/nbReads,2))+"\n"
                         +"Sequence Mismatch : "+str(round(X/nbReads,2))+"\n")
+        
+        
+def test(line):
+    nbReads, M, I, D, S, H, N, P, X, Egal = [0 for n in range(10)] 
+    print(M)
+    mutValues = line.split(";")
+    nbReads += 2
+    M += float(mutValues[0])#+float(mutValues[12])
+    I += float(mutValues[1])#+float(mutValues[13])
+    D += float(mutValues[2])#+float(mutValues[14])
+    S += float(mutValues[3])#+float(mutValues[15])
+    H += float(mutValues[4])#+float(mutValues[16])
+    N += float(mutValues[5])#+float(mutValues[17])
+    P += float(mutValues[6])#+float(mutValues[18])
+    X += float(mutValues[7])#+float(mutValues[19])
+    Egal += float(mutValues[8])#+float(mutValues[20])
+    print("Global cigar mutation observed :"+"\n"
+                +"Alignlent Match : "+str(round(M/nbReads,2))+"\n"
+                +"Insertion : "+str(round(I/nbReads,2))+"\n"
+                +"Deletion : "+str(round(D/nbReads,2))+"\n"
+                +"Skipped region : "+str(round(S/nbReads,2))+"\n"
+                +"Soft Clipping : "+str(round(H/nbReads,2))+"\n"
+                +"Hard Clipping : "+str(round(N/nbReads,2))+"\n"
+                +"Padding : "+str(round(P/nbReads,2))+"\n"
+                +"Sequence Match : "+str(round(Egal/nbReads,2))+"\n"
+                +"Sequence Mismatch : "+str(round(X/nbReads,2))+"\n")
 
 
- 
 #### Summarise the results ####
 
-def Summary(fileName):
+#def Summary(fileName):
     
    
 
 #### Main function ####
 
-def main(argv):
+#def main(argv):
     
 
 ############### LAUNCH THE SCRIPT ###############
 
-if __name__ == "__main__":
-    main(sys.argv[1:])
+#if __name__ == "__main__":
+#    main(sys.argv[1:])
