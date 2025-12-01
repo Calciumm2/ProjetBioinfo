@@ -59,7 +59,7 @@ def Store(file):
         sam_lines=SamRead(file)
         unmapped_count=unmapped(sam_lines)
         partially_mapped_count=partiallyMapped(sam_lines)
-        return partially_mapped_count,unmapped_count
+        return unmapped_count,partially_mapped_count,
     else:
         return None 
 
@@ -194,7 +194,56 @@ def test(line):
                 +"Padding : "+str(round(P/nbReads,2))+"\n"
                 +"Sequence Match : "+str(round(Egal/nbReads,2))+"\n"
                 +"Sequence Mismatch : "+str(round(X/nbReads,2))+"\n")
+    
+def SamRead2(file):
+    D={}
+    with open(file,"r") as Str:  
+        L=list(islice(enumerate(Str),2,None))
+    List=[t[1] for t in L]
+    for t in List:
+        t=t.split("\t")
+        if t[0] not in D.keys():
+            D[t[0]]=t[1:]
+        else :
+            D[t[0]+"-1"]=t[1:]
+    return D
 
+def unmapped2(sam_line):
+    unmapped_count = 0
+    with open ("../Results/only_unmapped.fasta", "a+") as unmapped_fasta, open("../Results/summary_unmapped.txt", "w") as summary_file:
+        for line in sam_line.values():
+            flag = flagBinary(line[0])
+            if int(flag[-3]) == 1:
+                unmapped_count += 1
+                unmapped_fasta.write(str(line)[1:-1]) #retiré "toStringOutput"
+        summary_file.write("Total unmapped reads: " + str(unmapped_count) + "\n") 
+        return unmapped_count
+
+def partiallyMapped2(sam_line):
+    partially_mapped_count = 0
+    with open ("../Results/only_partially_mapped.fasta", "a+") as partillay_mapped_fasta, open("../Results/summary_partially_mapped.txt", "w") as summary_file:
+        for line in sam_line.values():
+            flag = flagBinary(line[0]) # We compute the same 
+            if int(flag[-2]) == 1: 
+                if line[4] != "100M":
+                    partially_mapped_count += 1
+                    partillay_mapped_fasta.write(str(line)[1:-1]) #retiré "toStringOutput"
+        summary_file.write("Total partially mapped reads: " + str(partially_mapped_count) + "\n") 
+        return partially_mapped_count
+    
+def Store2(file):
+    if check_file(file):
+        sam_lines=SamRead2(file)
+        unmapped_count=unmapped2(sam_lines)
+        partially_mapped_count=partiallyMapped2(sam_lines)
+        return unmapped_count,partially_mapped_count
+    else:
+        return None 
+
+def toto(toto):
+    for t in toto.values():
+        if len(t[0]) != 3:
+            print(t[0])
 
 #### Summarise the results ####
 
