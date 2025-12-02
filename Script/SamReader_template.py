@@ -57,13 +57,32 @@ def SamRead(file):
 def Store(file):
     if check_file(file):
         sam_lines=SamRead(file)
-        unmapped_count=unmapped(sam_lines)
-        partially_mapped_count=partiallyMapped(sam_lines)
-        return unmapped_count,partially_mapped_count,
+        unmapped_count,un=unmapped(sam_lines)
+        partially_mapped_count,par=partiallyMapped(sam_lines)
+        Pm=PerfectMapped(sam_lines)
+        ids=Ids(file)
+        return unmapped_count,partially_mapped_count,Pm,un,par,ids
     else:
         return None 
-
-## 4/ Analyse 
+    
+def Analyse(Pm,Un,Par,idd,file):
+    MapUnMap={}
+    MapParMap={}
+    IdLines=SamRead2(file)
+    for s in idd.keys():
+        if s in Pm and s in Un:
+            MapUnMap[s]=Un[s]
+            MapUnMap[s+"-1"]=Pm[s]
+        if s in Pm and s in Par:
+            MapParMap[s]=Par[s]
+            MapParMap[s+"-1"]=Pm[s]
+        with open("../Results/outpuTable_cigar.txt","a+") as outpuTable:
+            if idd[s]==2:
+                D1,D2=readCigar(IdLines[s][4]),readCigar(IdLines[s+"-1"][4])
+                LTXT=percentMutation(D1)+";"+percentMutation(D2)
+                outpuTable.write(LTXT+"\n")
+    return MapUnMap,MapParMap
+    
 
 #Converti les flag en binaire, adapter la lecture en fonction 
 def flagBinary(flag):
@@ -79,19 +98,22 @@ def flagBinary(flag):
 
 #Prend les lignes unmapped et écrit un fichier qui les contient en Fasta et un fichier résumé qui donne le nombre de reads unmapped
 def unmapped(sam_line):
+    D={}
     unmapped_count = 0
     with open ("../Results/only_unmapped.fasta", "a+") as unmapped_fasta, open("../Results/summary_unmapped.txt", "w") as summary_file:
         for line in sam_line:
             col_line = line.split("\t")
             flag = flagBinary(col_line[1])
             if int(flag[-3]) == 1:
+                D[col_line[0]]=col_line[1:]
                 unmapped_count += 1
                 unmapped_fasta.write(line) #retiré "toStringOutput"
         summary_file.write("Total unmapped reads: " + str(unmapped_count) + "\n") 
-        return unmapped_count
+        return unmapped_count,D
 
 #Fonction qui compte les read partially mapped en regardant le CIGAR
 def partiallyMapped(sam_line):
+    D={}
     partially_mapped_count = 0
     with open ("../Results/only_partially_mapped.fasta", "a+") as partillay_mapped_fasta, open("../Results/summary_partially_mapped.txt", "w") as summary_file:
         for line in sam_line:
@@ -99,11 +121,27 @@ def partiallyMapped(sam_line):
             flag = flagBinary(col_line[1]) # We compute the same 
             if int(flag[-2]) == 1: 
                 if col_line[5] != "100M":
+                    D[col_line[0]]=col_line[1:]
                     partially_mapped_count += 1
                     partillay_mapped_fasta.write(line) #retiré "toStringOutput"
         summary_file.write("Total partially mapped reads: " + str(partially_mapped_count) + "\n") 
-        return partially_mapped_count
+        return partially_mapped_count,D
 
+def PerfectMapped(sam_line):
+    D={}
+    for line in sam_line:
+        col_line = line.split("\t")
+        if int(flagBinary(col_line[1])[-3])==0 and col_line[5] == "100M":
+            D[col_line[0]]=col_line[1:]
+        #if not isPartMapped(col_line) and not isunmapped(col_line):
+        #    D[col_line[0]]=col_line[1:]
+    return D
+
+def isPartMapped(col_line):
+    return int(flagBinary(col_line[1])[-2]) ==1 and col_line[5] != "100M"
+
+def isunmapped(col_line):
+    return int(flagBinary(col_line[1])[-3]) == 1
 
 def readCigar(cigar): 
     ext = re.findall('\w',cigar) #sépare tous les caractères
@@ -144,46 +182,45 @@ def percentMutation(dico):
 
 #Fonction qui écrit un .txt qui résume la distribution de tous les cigar à partir d'un cigar contenant les contenus de la fonction précédente (itérée paire par paire ?)
 def globalPercentCigar():
-    with open ("outpuTable_cigar.txt","r") as outpuTable, open("Final_Cigar_table.txt", "w") as FinalCigar: #On explicite le .txt qu'on lit et écrit
+    with open ("../Results/outpuTable_cigar.txt","r") as outpuTable, open("../Results/Final_Cigar_table.txt", "w") as FinalCigar: #On explicite le .txt qu'on lit et écrit
         nbReads, M, I, D, S, H, N, P, X, Egal = [0 for n in range(10)] #chaque valeur initiée à zéro
         for line in outpuTable : #on parcourt chaque ligne de la table donnée
             mutValues = line.split(";")
             nbReads += 2 #nombre de reads par lignes ?
-            M += float(mutValues[2])+float(mutValues[12]) #théorie : la valeur "de gauche" (resp "de droite") vaut pour le M du premier (resp deuxième) read de la paire 
-            I += float(mutValues[3])+float(mutValues[13])
-            D += float(mutValues[4])+float(mutValues[14])
-            S += float(mutValues[5])+float(mutValues[15])
-            H += float(mutValues[6])+float(mutValues[16])
-            N += float(mutValues[7])+float(mutValues[17])
-            P += float(mutValues[8])+float(mutValues[18])
-            X += float(mutValues[9])+float(mutValues[19])
-            Egal += float(mutValues[10])+float(mutValues[20])
+            M += float(mutValues[0])+float(mutValues[9])
+            I += float(mutValues[1])+float(mutValues[10])
+            D += float(mutValues[2])+float(mutValues[11])
+            S += float(mutValues[3])+float(mutValues[12])
+            H += float(mutValues[4])+float(mutValues[13])
+            N += float(mutValues[5])+float(mutValues[14])
+            P += float(mutValues[6])+float(mutValues[15])
+            X += float(mutValues[7])+float(mutValues[16])
+            Egal += float(mutValues[8])+float(mutValues[17])
         FinalCigar.write("Global cigar mutation observed :"+"\n" #On écrit les résultats dans la table correspondante 
-                        +"Alignlent Match : "+str(round(M/nbReads,2))+"\n"
-                        +"Insertion : "+str(round(I/nbReads,2))+"\n"
-                        +"Deletion : "+str(round(D/nbReads,2))+"\n"
-                        +"Skipped region : "+str(round(S/nbReads,2))+"\n"
-                        +"Soft Clipping : "+str(round(H/nbReads,2))+"\n"
-                        +"Hard Clipping : "+str(round(N/nbReads,2))+"\n"
-                        +"Padding : "+str(round(P/nbReads,2))+"\n"
-                        +"Sequence Match : "+str(round(Egal/nbReads,2))+"\n"
-                        +"Sequence Mismatch : "+str(round(X/nbReads,2))+"\n")
+                        +"Alignlent Match : "+str(round(M/nbReads,4))+"\n"
+                        +"Insertion : "+str(round(I/nbReads,4))+"\n"
+                        +"Deletion : "+str(round(D/nbReads,4))+"\n"
+                        +"Skipped region : "+str(round(S/nbReads,4))+"\n"
+                        +"Soft Clipping : "+str(round(H/nbReads,4))+"\n"
+                        +"Hard Clipping : "+str(round(N/nbReads,4))+"\n"
+                        +"Padding : "+str(round(P/nbReads,4))+"\n"
+                        +"Sequence Match : "+str(round(Egal/nbReads,4))+"\n"
+                        +"Sequence Mismatch : "+str(round(X/nbReads,4))+"\n")
         
         
 def test(line):
     nbReads, M, I, D, S, H, N, P, X, Egal = [0 for n in range(10)] 
-    print(M)
     mutValues = line.split(";")
     nbReads += 2
-    M += float(mutValues[0])#+float(mutValues[12])
-    I += float(mutValues[1])#+float(mutValues[13])
-    D += float(mutValues[2])#+float(mutValues[14])
-    S += float(mutValues[3])#+float(mutValues[15])
-    H += float(mutValues[4])#+float(mutValues[16])
-    N += float(mutValues[5])#+float(mutValues[17])
-    P += float(mutValues[6])#+float(mutValues[18])
-    X += float(mutValues[7])#+float(mutValues[19])
-    Egal += float(mutValues[8])#+float(mutValues[20])
+    M += float(mutValues[0])+float(mutValues[9])
+    I += float(mutValues[1])+float(mutValues[10])
+    D += float(mutValues[2])+float(mutValues[11])
+    S += float(mutValues[3])+float(mutValues[12])
+    H += float(mutValues[4])+float(mutValues[13])
+    N += float(mutValues[5])+float(mutValues[14])
+    P += float(mutValues[6])+float(mutValues[15])
+    X += float(mutValues[7])+float(mutValues[16])
+    Egal += float(mutValues[8])+float(mutValues[17])
     print("Global cigar mutation observed :"+"\n"
                 +"Alignlent Match : "+str(round(M/nbReads,2))+"\n"
                 +"Insertion : "+str(round(I/nbReads,2))+"\n"
@@ -194,6 +231,19 @@ def test(line):
                 +"Padding : "+str(round(P/nbReads,2))+"\n"
                 +"Sequence Match : "+str(round(Egal/nbReads,2))+"\n"
                 +"Sequence Mismatch : "+str(round(X/nbReads,2))+"\n")
+    
+def Ids(file):
+    D={}
+    with open(file,"r") as Str:  
+        L=list(islice(enumerate(Str),2,None))
+    List=[t[1] for t in L]
+    for t in List:
+        t=t.split("\t")
+        if t[0] in D.keys():
+            D[t[0]]=2
+        else:
+            D[t[0]]=1
+    return D    
     
 def SamRead2(file):
     D={}
@@ -211,23 +261,23 @@ def SamRead2(file):
 def unmapped2(sam_line):
     unmapped_count = 0
     with open ("../Results/only_unmapped.fasta", "a+") as unmapped_fasta, open("../Results/summary_unmapped.txt", "w") as summary_file:
-        for line in sam_line.values():
+        for keys,line in sam_line.items():
             flag = flagBinary(line[0])
             if int(flag[-3]) == 1:
                 unmapped_count += 1
-                unmapped_fasta.write(str(line)[1:-1]) #retiré "toStringOutput"
-        summary_file.write("Total unmapped reads: " + str(unmapped_count) + "\n") 
+                unmapped_fasta.write(keys+"\t"+str(line)[1:-1]+"\n") #retiré "toStringOutput"
+        summary_file.write("Total unmapped reads: " + str(unmapped_count)) 
         return unmapped_count
 
 def partiallyMapped2(sam_line):
     partially_mapped_count = 0
     with open ("../Results/only_partially_mapped.fasta", "a+") as partillay_mapped_fasta, open("../Results/summary_partially_mapped.txt", "w") as summary_file:
-        for line in sam_line.values():
+        for keys,line in sam_line.items():
             flag = flagBinary(line[0]) # We compute the same 
             if int(flag[-2]) == 1: 
                 if line[4] != "100M":
                     partially_mapped_count += 1
-                    partillay_mapped_fasta.write(str(line)[1:-1]) #retiré "toStringOutput"
+                    partillay_mapped_fasta.write(keys+"\t"+str(line)[1:-1]+"\n") #retiré "toStringOutput"
         summary_file.write("Total partially mapped reads: " + str(partially_mapped_count) + "\n") 
         return partially_mapped_count
     
@@ -240,11 +290,6 @@ def Store2(file):
     else:
         return None 
 
-def toto(toto):
-    for t in toto.values():
-        if len(t[0]) != 3:
-            print(t[0])
-
 #### Summarise the results ####
 
 #def Summary(fileName):
@@ -253,10 +298,18 @@ def toto(toto):
 
 #### Main function ####
 
-#def main(argv):
+def main(argv):
+    if len(argv) < 1:
+        print("erreur")
+        return None
+    input_file=argv[0]
+    #check_file(input_file)
+    unmapped_count,partially_mapped_count,Pm,un,par,idd=Store(input_file)
+    T,TT=Analyse(Pm,un,par,idd,input_file)
+    globalPercentCigar()
     
 
 ############### LAUNCH THE SCRIPT ###############
 
-#if __name__ == "__main__":
-#    main(sys.argv[1:])
+if __name__ == "__main__":
+    main(sys.argv[1:])
