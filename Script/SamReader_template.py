@@ -28,6 +28,7 @@ import os;
 import sys;
 import re
 
+
 #Fonction qui vérifie si le lien vers "fichier" existe
 def check_file(file):
     if not os.path.exists(file):
@@ -47,42 +48,57 @@ def check_file(file):
 
 ## 2/ Read, 
 #Fonction qui lis le fichier, sépare ligne 
-def SamRead(file):
+def SamRead(file,minval):
     with open(file,"r") as Str:  
         L=list(islice(enumerate(Str),2,None))
-    return [t[1] for t in L]
+    return [t[1] for t in L if int(t[1].split("\t")[4]) > minval] #On prend [1] pour ne pas avoir le num de la ligne
     
 ## 3/ Store,
 #Fonction qui appelle check_file et samread et qui stocke les résultats de unmapped et de partiallymapped
-def Store(file):
-    if check_file(file):
-        sam_lines=SamRead(file)
-        unmapped_count,un=unmapped(sam_lines)
-        partially_mapped_count,par=partiallyMapped(sam_lines)
-        Pm=PerfectMapped(sam_lines)
-        ids=Ids(file)
-        return unmapped_count,partially_mapped_count,Pm,un,par,ids
+def Store(file,minval):
+    if check_file(file): #On check si le fichier est non vide
+        Qual=ReadQuality(SamRead2(file, -1))
+        sam_lines=SamRead(file,minval) #On obtient une liste des lignes
+        unmapped_count,un=unmapped(sam_lines) #On obtient le nombre de read unmapped et un dico les contenant
+        partially_mapped_count,par=partiallyMapped(sam_lines) #On obtient le nombre de read partiallymapped et un dico les contenant
+        Pm=PerfectMapped(sam_lines) #On obtient un dico contenant les Id de read perfectMapped (on ne garde qu'une seule occurence pour les paires car on ne s'intéresse pas au contenu de la ligne)
+        idd=Ids(file,minval) #On obtient un dico contenant les Id de chaque read, avec son nombre d'occurence (on veut être sûr que chaque read est paired)
+        return unmapped_count,partially_mapped_count,Pm,un,par,idd,Qual
     else:
-        return None 
+        return None #Changer pour un exit 
     
-def Analyse(Pm,Un,Par,idd,file):
-    MapUnMap={}
-    MapParMap={}
-    IdLines=SamRead2(file)
-    for s in idd.keys():
-        if s in Pm and s in Un:
-            MapUnMap[s]=Un[s]
-            MapUnMap[s+"-1"]=Pm[s]
-        if s in Pm and s in Par:
-            MapParMap[s]=Par[s]
+def Analyse(Pm,Un,Par,idd,file,minval): #Fonction qui va analyser les paires de read, et le pourcentage global de chaque mutation grace au cigar
+    MapUnMap={} #Dico qui contiendra les paires de read Mapped-UnMapped
+    MapParMap={} #Dico qui contiendra les paires de read Mapped-PartMapped
+    IdLines=SamRead2(file,minval) #Dico qui contient toutes les lignes selon clé = Id du read, valeur = reste de la ligne
+    for s in idd.keys(): #On parcourt pour chaque Id de read 
+        if s in Pm and s in Un: #On regarde si la paire est présente dans perfectMapped et dans Unmapped
+            MapUnMap[s]=Un[s] #On ajoute le premier read de la paire 
+            MapUnMap[s+"-1"]=Pm[s] #/// le second
+        if s in Pm and s in Par:  #On regarde si la paire est présente dans parMapped et dans Unmapped
+            MapParMap[s]=Par[s] #Même que avant
             MapParMap[s+"-1"]=Pm[s]
-        with open("../Results/outpuTable_cigar.txt","a+") as outpuTable:
-            if idd[s]==2:
-                D1,D2=readCigar(IdLines[s][4]),readCigar(IdLines[s+"-1"][4])
-                LTXT=percentMutation(D1)+";"+percentMutation(D2)
-                outpuTable.write(LTXT+"\n")
-    return MapUnMap,MapParMap
+        with open("../Results/outpuTable_cigar.txt","a+") as outpuTable: #On va écrire les pourcentages de mutations pour chaque ligne
+            if idd[s]==2: #On vérifie que l'Id est associé à une paire de read
+                D1,D2=readCigar(IdLines[s][4]),readCigar(IdLines[s+"-1"][4]) #On obtient les deux % de chaque mutations pour les deux read de la paire 
+                LTXT=percentMutation(D1)+";"+percentMutation(D2) #On concatène en une ligne 
+                outpuTable.write(LTXT+"\n") #On écrit dans un fichier Txt qui contiendra les résultats 
+    return MapUnMap,MapParMap 
     
+def ReadQuality(sam_line):
+    D={}
+    for line in sam_line.values():
+        value=int(line[3])
+        if value not in D.keys():
+            D[value]=1
+        else :
+            D[value]+=1
+    with open("../Results/QualityDistribution.tsv","a+") as outpuTable:
+        outpuTable.write("Quality"+",\t"+"Number \n")
+        for k in D.keys():
+            outpuTable.write(str(k)+"\t"+str(D[k])+"\n")
+    return D
+            
 
 #Converti les flag en binaire, adapter la lecture en fonction 
 def flagBinary(flag):
@@ -98,10 +114,10 @@ def flagBinary(flag):
 
 #Prend les lignes unmapped et écrit un fichier qui les contient en Fasta et un fichier résumé qui donne le nombre de reads unmapped
 def unmapped(sam_line):
-    D={}
+    D={} #Dico qui contiendra les read UnMapped
     unmapped_count = 0
     with open ("../Results/only_unmapped.fasta", "a+") as unmapped_fasta, open("../Results/summary_unmapped.txt", "w") as summary_file:
-        for line in sam_line:
+        for line in sam_line: 
             col_line = line.split("\t")
             flag = flagBinary(col_line[1])
             if int(flag[-3]) == 1:
@@ -120,7 +136,7 @@ def partiallyMapped(sam_line):
             col_line = line.split("\t")
             flag = flagBinary(col_line[1]) # We compute the same 
             if int(flag[-2]) == 1: 
-                if col_line[5] != "100M":
+                if col_line[5] != str(len(col_line[9]))+"M": #à spécifier 
                     D[col_line[0]]=col_line[1:]
                     partially_mapped_count += 1
                     partillay_mapped_fasta.write(line) #retiré "toStringOutput"
@@ -131,7 +147,7 @@ def PerfectMapped(sam_line):
     D={}
     for line in sam_line:
         col_line = line.split("\t")
-        if int(flagBinary(col_line[1])[-3])==0 and col_line[5] == "100M":
+        if int(flagBinary(col_line[1])[-3])==0 and col_line[5] == str(len(col_line[9]))+"M":
             D[col_line[0]]=col_line[1:]
         #if not isPartMapped(col_line) and not isunmapped(col_line):
         #    D[col_line[0]]=col_line[1:]
@@ -186,7 +202,7 @@ def globalPercentCigar():
         nbReads, M, I, D, S, H, N, P, X, Egal = [0 for n in range(10)] #chaque valeur initiée à zéro
         for line in outpuTable : #on parcourt chaque ligne de la table donnée
             mutValues = line.split(";")
-            nbReads += 2 #nombre de reads par lignes ?
+            nbReads += 2 #nombre de reads total (2 par ligne)
             M += float(mutValues[0])+float(mutValues[9])
             I += float(mutValues[1])+float(mutValues[10])
             D += float(mutValues[2])+float(mutValues[11])
@@ -197,46 +213,21 @@ def globalPercentCigar():
             X += float(mutValues[7])+float(mutValues[16])
             Egal += float(mutValues[8])+float(mutValues[17])
         FinalCigar.write("Global cigar mutation observed :"+"\n" #On écrit les résultats dans la table correspondante 
-                        +"Alignlent Match : "+str(round(M/nbReads,4))+"\n"
-                        +"Insertion : "+str(round(I/nbReads,4))+"\n"
-                        +"Deletion : "+str(round(D/nbReads,4))+"\n"
-                        +"Skipped region : "+str(round(S/nbReads,4))+"\n"
-                        +"Soft Clipping : "+str(round(H/nbReads,4))+"\n"
-                        +"Hard Clipping : "+str(round(N/nbReads,4))+"\n"
-                        +"Padding : "+str(round(P/nbReads,4))+"\n"
-                        +"Sequence Match : "+str(round(Egal/nbReads,4))+"\n"
-                        +"Sequence Mismatch : "+str(round(X/nbReads,4))+"\n")
+                        +"Alignment Match : "+str(round(M/nbReads,4))+"% "+str(round(M,4))+" total"+"\n" #On calcule tous les pourcentages
+                        +"Insertion : "+str(round(I/nbReads,4))+"% "+str(round(I,4))+" total"+"\n"
+                        +"Deletion : "+str(round(D/nbReads,4))+"% "+str(round(D,4))+" total"+"\n"
+                        +"Skipped region : "+str(round(S/nbReads,4))+"% "+str(round(S,4))+" total"+"\n"
+                        +"Soft Clipping : "+str(round(H/nbReads,4))+"% "+str(round(H,4))+" total"+"\n"
+                        +"Hard Clipping : "+str(round(N/nbReads,4))+"% "+str(round(N,4))+" total"+"\n"
+                        +"Padding : "+str(round(P/nbReads,4))+"% "+str(round(P,4))+" total"+"\n"
+                        +"Sequence Match : "+str(round(Egal/nbReads,4))+"% "+str(round(Egal,4))+" total"+"\n"
+                        +"Sequence Mismatch : "+str(round(X/nbReads,4))+"% "+str(round(X,4))+" total"+"\n")
         
-        
-def test(line):
-    nbReads, M, I, D, S, H, N, P, X, Egal = [0 for n in range(10)] 
-    mutValues = line.split(";")
-    nbReads += 2
-    M += float(mutValues[0])+float(mutValues[9])
-    I += float(mutValues[1])+float(mutValues[10])
-    D += float(mutValues[2])+float(mutValues[11])
-    S += float(mutValues[3])+float(mutValues[12])
-    H += float(mutValues[4])+float(mutValues[13])
-    N += float(mutValues[5])+float(mutValues[14])
-    P += float(mutValues[6])+float(mutValues[15])
-    X += float(mutValues[7])+float(mutValues[16])
-    Egal += float(mutValues[8])+float(mutValues[17])
-    print("Global cigar mutation observed :"+"\n"
-                +"Alignlent Match : "+str(round(M/nbReads,2))+"\n"
-                +"Insertion : "+str(round(I/nbReads,2))+"\n"
-                +"Deletion : "+str(round(D/nbReads,2))+"\n"
-                +"Skipped region : "+str(round(S/nbReads,2))+"\n"
-                +"Soft Clipping : "+str(round(H/nbReads,2))+"\n"
-                +"Hard Clipping : "+str(round(N/nbReads,2))+"\n"
-                +"Padding : "+str(round(P/nbReads,2))+"\n"
-                +"Sequence Match : "+str(round(Egal/nbReads,2))+"\n"
-                +"Sequence Mismatch : "+str(round(X/nbReads,2))+"\n")
-    
-def Ids(file):
+def Ids(file,minval): #Fonction qui store les Id des read et leur nombre d'occurence 
     D={}
     with open(file,"r") as Str:  
         L=list(islice(enumerate(Str),2,None))
-    List=[t[1] for t in L]
+    List=[t[1] for t in L if int(t[1].split("\t")[4]) > minval]
     for t in List:
         t=t.split("\t")
         if t[0] in D.keys():
@@ -245,11 +236,11 @@ def Ids(file):
             D[t[0]]=1
     return D    
     
-def SamRead2(file):
+def SamRead2(file,minval): #Fonction qui store les read dans un dico sous la forme Clé = Id, Valeur = reste de la ligne 
     D={}
     with open(file,"r") as Str:  
         L=list(islice(enumerate(Str),2,None))
-    List=[t[1] for t in L]
+    List=[t[1] for t in L if int(t[1].split("\t")[4]) > minval]
     for t in List:
         t=t.split("\t")
         if t[0] not in D.keys():
@@ -302,10 +293,11 @@ def main(argv):
     if len(argv) < 1:
         print("erreur")
         return None
+    minval=int(argv[1])
     input_file=argv[0]
     #check_file(input_file)
-    unmapped_count,partially_mapped_count,Pm,un,par,idd=Store(input_file)
-    T,TT=Analyse(Pm,un,par,idd,input_file)
+    unmapped_count,partially_mapped_count,Pm,un,par,idd,Qual=Store(input_file,minval)
+    T,TT=Analyse(Pm,un,par,idd,input_file,minval)
     globalPercentCigar()
     
 
