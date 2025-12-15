@@ -1,6 +1,7 @@
 # SamReader
 **Authors:** Lucien Maurau, Mathilde Chatain  
 **Contacts:** lucien.maurau@etu.umontpellier.fr, mathilde.chatain@etu.umontpellier.fr  
+**License:** GNU General Public License v3.0  
 
 ---
 
@@ -11,7 +12,7 @@
 The script performs the following tasks:  
 
 - Verifies the integrity of the SAM file.  
-- Filters reads based on a **minimum quality threshold**.  
+- Filters reads based on a **minimum quality value**.  
 - Categorizes reads as **unmapped**, **partially mapped**, or **perfectly mapped**.  
 - Handles **paired-end reads**.  
 - Parses **CIGAR strings** to compute mutation percentages.  
@@ -24,7 +25,7 @@ The script performs the following tasks:
 1. **SAM file verification**
    - Checks if the file exists
    - Ensures the file is not empty
-2. Filters reads by mapping quality
+2. Filters reads by a minimum mapping quality
 3. Identifies:
    - Unmapped reads
    - Partially mapped reads
@@ -32,7 +33,7 @@ The script performs the following tasks:
 4. Handles paired-end reads
 5. Parses and summarizes CIGAR strings
 6. Computes mutation percentages per read and globally
-7. Generates summary and FASTA output files
+7. Generates summary, FASTA, TSV and TXT output files
 
 ---
 
@@ -52,7 +53,10 @@ The script performs the following tasks:
 
 ## Usage
 
-```bash
-python3 SamReader.py <input.sam> <min_quality>
+### 1. Clone the GitHub repository
 
-Note : The command must be executed in the directory containing the Script, and the script must be contained in a similar directory than in this git depot (the paths to store the results are buit-in).  
+```bash
+git clone https://github.com/Calciumm2/ProjetBioinfo.git
+cd ProjetBioinfo
+cd script
+python3 SamReader.py <input.sam> <min_quality>
