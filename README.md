@@ -56,5 +56,5 @@ The script performs the following tasks:
 ```bash
 git clone https://github.com/Calciumm2/ProjetBioinfo.git
 cd ProjetBioinfo
-cd script
+cd Script
 python3 SamReader_template.py <input.sam> <min_quality>
