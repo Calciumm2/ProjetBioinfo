@@ -53,10 +53,8 @@ The script performs the following tasks:
 
 ## Usage
 
-### 1. Clone the GitHub repository
-
 ```bash
 git clone https://github.com/Calciumm2/ProjetBioinfo.git
 cd ProjetBioinfo
 cd script
-python3 SamReader.py <input.sam> <min_quality>
+python3 SamReader_template.py <input.sam> <min_quality>
