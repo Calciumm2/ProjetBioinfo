@@ -54,3 +54,5 @@ The script performs the following tasks:
 
 ```bash
 python3 SamReader.py <input.sam> <min_quality>
+
+Note : The command must be executed in the directory containing the Script, and the script must be contained in a similar directory than in this git depot (the paths to store the results are buit-in).  
